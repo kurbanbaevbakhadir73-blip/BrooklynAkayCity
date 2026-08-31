@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>VINOTEKA — mini ilova</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#17130f;
+    --surface:#231d17;
+    --surface-2:#2b241c;
+    --line:#3a3226;
+    --cream:#f2ead9;
+    --muted:#a3937a;
+    --amber:#c99a3d;
+    --amber-dim:#8a712f;
+    --wine:#7c3030;
+    --danger:#b5483d;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--cream);
+    font-family:'Manrope',sans-serif;
+    min-height:100vh;
+    padding-bottom:90px;
+  }
+  h1,h2,h3,.display{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    letter-spacing:.2px;
+  }
+
+  /* ---------- header ---------- */
+  header{
+    position:sticky;top:0;z-index:20;
+    background:linear-gradient(180deg, var(--bg) 70%, transparent);
+    padding:18px 16px 10px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  header .brand{display:flex;flex-direction:column;line-height:1.1;}
+  header .brand span.small{
+    font-family:'Manrope',sans-serif;
+    font-size:11px;letter-spacing:.14em;color:var(--muted);
+    margin-bottom:2px;
+  }
+  header .brand span.title{font-size:22px;font-style:italic;color:var(--cream);}
+  .cart-btn{
+    position:relative;
+    width:44px;height:44px;border-radius:50%;
+    background:var(--surface);border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+  }
+  .cart-btn svg{width:20px;height:20px;stroke:var(--cream);}
+  .cart-badge{
+    position:absolute;top:-4px;right:-4px;
+    background:var(--amber);color:#1a1509;
+    font-size:11px;font-weight:800;
+    min-width:18px;height:18px;border-radius:9px;
+    display:flex;align-items:center;justify-content:center;
+    padding:0 4px;
+  }
+
+  /* ---------- categories ---------- */
+  .cats{
+    display:flex;gap:8px;overflow-x:auto;
+    padding:6px 16px 14px;
+    scrollbar-width:none;
+  }
+  .cats::-webkit-scrollbar{display:none;}
+  .cat-pill{
+    flex:0 0 auto;
+    padding:9px 16px;
+    border-radius:999px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    color:var(--muted);
+    font-size:13.5px;font-weight:600;
+    cursor:pointer;white-space:nowrap;
+    transition:background .15s,color .15s,border-color .15s;
+  }
+  .cat-pill.active{
+    background:var(--amber);
+    border-color:var(--amber);
+    color:#1a1509;
+  }
+
+  /* ---------- product grid ---------- */
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+    padding:4px 16px 24px;
+  }
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    overflow:hidden;
+    display:flex;flex-direction:column;
+  }
+  .card .art{
+    background:var(--surface-2);
+    height:118px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .card .art svg{height:88px;}
+  .card .body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:4px;flex:1;}
+  .card .name{font-size:14px;font-weight:700;color:var(--cream);line-height:1.25;}
+  .card .meta{font-size:11.5px;color:var(--muted);}
+  .card .price{
+    font-family:'Fraunces',serif;font-style:italic;
+    font-size:16px;color:var(--amber);margin-top:2px;
+  }
+  .card .row{
+    margin-top:auto;
+    display:flex;align-items:center;justify-content:space-between;
+    gap:6px;padding-top:8px;
+  }
+  .stepper{
+    display:flex;align-items:center;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    overflow:hidden;
+  }
+  .stepper button{
+    width:26px;height:26px;
+    background:transparent;border:none;color:var(--cream);
+    font-size:15px;cursor:pointer;
+  }
+  .stepper .qty{width:22px;text-align:center;font-size:13px;font-weight:700;}
+  .add-btn{
+    flex:1;
+    background:var(--amber-dim);
+    color:var(--cream);
+    border:none;border-radius:10px;
+    font-size:12.5px;font-weight:700;
+    padding:7px 8px;
+    cursor:pointer;
+  }
+  .add-btn.in-cart{background:var(--amber);color:#1a1509;}
+
+  /* ---------- sheets (cart / checkout) ---------- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(10,8,6,.55);
+    opacity:0;pointer-events:none;transition:opacity .2s;z-index:30;
+  }
+  .overlay.show{opacity:1;pointer-events:auto;}
+  .sheet{
+    position:fixed;left:0;right:0;bottom:0;z-index:31;
+    background:var(--bg);
+    border-top:1px solid var(--line);
+    border-radius:20px 20px 0 0;
+    max-height:82vh;
+    transform:translateY(100%);
+    transition:transform .25s ease;
+    display:flex;flex-direction:column;
+  }
+  .sheet.show{transform:translateY(0);}
+  .sheet-handle{width:36px;height:4px;background:var(--line);border-radius:2px;margin:10px auto 4px;}
+  .sheet-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:6px 18px 12px;border-bottom:1px solid var(--line);
+  }
+  .sheet-head h2{font-size:19px;font-style:italic;margin:0;}
+  .close-x{background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;}
+  .sheet-body{overflow-y:auto;padding:12px 18px 18px;}
+
+  .cart-item{
+    display:flex;gap:10px;align-items:center;
+    padding:12px 0;border-bottom:1px solid var(--line);
+  }
+  .cart-item .art{width:46px;height:46px;background:var(--surface-2);border-radius:10px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .cart-item .art svg{height:34px;}
+  .cart-item .info{flex:1;min-width:0;}
+  .cart-item .info .name{font-size:13.5px;font-weight:700;}
+  .cart-item .info .price{font-size:12px;color:var(--muted);margin-top:2px;}
+  .cart-item .remove{background:none;border:none;color:var(--danger);font-size:11px;font-weight:700;cursor:pointer;padding:0;margin-top:4px;}
+
+  .empty-cart{text-align:center;color:var(--muted);padding:40px 10px;font-size:14px;}
+
+  .cart-summary{
+    padding:14px 18px calc(env(safe-area-inset-bottom,0px) + 14px);
+    border-top:1px solid var(--line);
+    background:var(--bg);
+  }
+  .summary-row{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:4px;}
+  .summary-row.total{font-size:17px;color:var(--cream);font-weight:800;margin:8px 0 14px;font-family:'Fraunces',serif;}
+  .primary-btn{
+    width:100%;background:var(--amber);color:#1a1509;
+    border:none;border-radius:12px;padding:14px;
+    font-size:15px;font-weight:800;cursor:pointer;
+  }
+  .primary-btn:disabled{opacity:.5;}
+  .ghost-note{font-size:11.5px;color:var(--muted);text-align:center;margin-top:10px;line-height:1.4;}
+
+  /* checkout form */
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600;}
+  .field input,.field textarea{
+    width:100%;background:var(--surface);border:1px solid var(--line);
+    border-radius:10px;padding:12px;color:var(--cream);font-size:14px;
+    font-family:'Manrope',sans-serif;
+  }
+  .field textarea{resize:vertical;min-height:60px;}
+  .field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--amber);}
+  .field select{
+    width:100%;background:var(--surface);border:1px solid var(--line);
+    border-radius:10px;padding:12px;color:var(--cream);font-size:14px;
+    font-family:'Manrope',sans-serif;
+  }
+  .field-row{display:flex;gap:10px;}
+  .field-row .field{flex:1;}
+  .field input[type="color"]{padding:4px;height:44px;cursor:pointer;}
+
+  /* ---------- admin ---------- */
+  .admin-tabs{display:flex;gap:8px;padding:12px 18px 0;}
+  .admin-tab{
+    flex:1;padding:9px;border-radius:10px;
+    background:var(--surface);border:1px solid var(--line);
+    color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;
+  }
+  .admin-tab.active{background:var(--amber);border-color:var(--amber);color:#1a1509;}
+  .admin-section-title{font-size:12px;color:var(--muted);font-weight:700;margin:16px 0 8px;letter-spacing:.04em;}
+  .admin-row{
+    display:flex;align-items:center;gap:10px;
+    padding:10px 0;border-bottom:1px solid var(--line);
+  }
+  .admin-row .art{width:38px;height:38px;background:var(--surface-2);border-radius:8px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .admin-row .art svg{height:28px;}
+  .admin-row .info{flex:1;min-width:0;}
+  .admin-row .info .name{font-size:13.5px;font-weight:700;}
+  .admin-row .info .meta{font-size:11.5px;color:var(--muted);}
+  .admin-row .actions{display:flex;gap:6px;}
+  .icon-btn{
+    width:30px;height:30px;border-radius:8px;border:1px solid var(--line);
+    background:var(--surface-2);color:var(--cream);font-size:13px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .icon-btn.danger{color:var(--danger);border-color:var(--danger);}
+  .secondary-btn{
+    width:100%;background:var(--surface-2);color:var(--cream);
+    border:1px solid var(--line);border-radius:12px;padding:12px;
+    font-size:14px;font-weight:700;cursor:pointer;margin-top:6px;
+  }
+
+  .toast{
+    position:fixed;left:50%;bottom:100px;transform:translateX(-50%);
+    background:var(--surface);border:1px solid var(--amber);color:var(--cream);
+    padding:10px 18px;border-radius:999px;font-size:13px;font-weight:600;
+    z-index:50;opacity:0;transition:opacity .2s;pointer-events:none;
+  }
+  .toast.show{opacity:1;}
+
+  .success{
+    text-align:center;padding:30px 10px 10px;
+  }
+  .success .check{
+    width:56px;height:56px;border-radius:50%;background:var(--amber);
+    display:flex;align-items:center;justify-content:center;margin:0 auto 16px;
+  }
+  .success .check svg{width:28px;height:28px;stroke:#1a1509;}
+  .success h3{margin:0 0 8px;font-size:19px;font-style:italic;}
+  .success p{color:var(--muted);font-size:13.5px;line-height:1.5;margin:0 0 20px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="small">ICHIMLIKLAR DO'KONI</span>
+    <span class="title">Vinoteka</span>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <div class="cart-btn" id="adminBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09A1.65 1.65 0 0015 4.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    </div>
+    <div class="cart-btn" id="cartBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6L4.5 3H2"/><circle cx="9.5" cy="19" r="1.4" fill="currentColor" stroke="none"/><circle cx="17" cy="19" r="1.4" fill="currentColor" stroke="none"/></svg>
+      <div class="cart-badge" id="cartBadge" style="display:none;">0</div>
+    </div>
+  </div>
+</header>
+
+<div class="cats" id="cats"></div>
+<div class="grid" id="grid"></div>
+
+<!-- CART SHEET -->
+<div class="overlay" id="overlay"></div>
+<div class="sheet" id="cartSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h2>Savat</h2>
+    <button class="close-x" id="closeCart">✕</button>
+  </div>
+  <div class="sheet-body" id="cartBody"></div>
+  <div class="cart-summary" id="cartSummary" style="display:none;">
+    <div class="summary-row"><span>Mahsulotlar</span><span id="sumCount">0 ta</span></div>
+    <div class="summary-row total"><span>Jami</span><span id="sumTotal">0 so'm</span></div>
+    <button class="primary-btn" id="goCheckout">Buyurtma berish</button>
+  </div>
+</div>
+
+<!-- CHECKOUT SHEET -->
+<div class="sheet" id="checkoutSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h2>Yetkazib berish</h2>
+    <button class="close-x" id="closeCheckout">✕</button>
+  </div>
+  <div class="sheet-body" id="checkoutBody">
+    <div class="field">
+      <label>Ismingiz</label>
+      <input type="text" id="custName" placeholder="Ismingizni kiriting">
+    </div>
+    <div class="field">
+      <label>Telefon raqamingiz</label>
+      <input type="tel" id="custPhone" placeholder="+998 90 123 45 67">
+    </div>
+    <div class="field">
+      <label>Manzil / izoh (ixtiyoriy)</label>
+      <textarea id="custNote" placeholder="Yetkazib berish manzili yoki qo'shimcha izoh"></textarea>
+    </div>
+    <button class="primary-btn" id="sendOrderBtn">Buyurtmani yuborish</button>
+    <p class="ghost-note">Buyurtma tafsilotlari, telefon raqamingiz va Telegram profilingiz avtomatik ravishda bizga yuboriladi — tez orada siz bilan bog'lanamiz.</p>
+  </div>
+</div>
+
+<!-- PIN SHEET -->
+<div class="sheet" id="pinSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h2>Admin kirish</h2>
+    <button class="close-x" id="closePin">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div class="field">
+      <label>Maxfiy PIN kod</label>
+      <input type="password" id="pinInput" placeholder="••••" inputmode="numeric">
+    </div>
+    <button class="primary-btn" id="pinSubmit">Kirish</button>
+  </div>
+</div>
+
+<!-- ADMIN SHEET -->
+<div class="sheet" id="adminSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h2>Admin panel</h2>
+    <button class="close-x" id="closeAdmin">✕</button>
+  </div>
+  <div class="admin-tabs">
+    <button class="admin-tab active" data-tab="products">Mahsulotlar</button>
+    <button class="admin-tab" data-tab="cats">Bo'limlar</button>
+  </div>
+  <div class="sheet-body" id="adminBody"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   SOZLASH KERAK BO'LGAN QISM (SETUP)
+   1) @BotFather orqali bot yarating -> tokenni shu yerga qo'ying
+   2) Adminning chat_id sini oling (masalan @userinfobot yordamida)
+   3) Admin panelga kirish uchun o'zingizning maxfiy PIN kodingizni qo'ying
+   ========================================================= */
+const BOT_TOKEN = "8672219821:AAFCoN19mlc9d-jHY9fIMFCy5mkarPED6d0";
+const ADMIN_CHAT_ID = "8569843437";
+const ADMIN_PIN = "3366";
+
+/* ---------- Firebase ---------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyBh_ZUPi7zfUj8uYV5Mwg2Zuz3uMVvkjpw",
+  authDomain: "brooklynakaycity.firebaseapp.com",
+  projectId: "brooklynakaycity",
+  storageBucket: "brooklynakaycity.firebasestorage.app",
+  messagingSenderId: "857950413956",
+  appId: "1:857950413956:web:cea9f337d1ccfe568c0ed1",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const CATALOG_DOC = db.collection('catalog').doc('data');
+
+const tg = window.Telegram ? window.Telegram.WebApp : null;
+if (tg) { tg.ready(); tg.expand(); }
+
+const fmt = n => Number(n||0).toLocaleString('ru-RU').replace(/,/g,' ') + " so'm";
+const slugify = s => s.toLowerCase().trim().replace(/[^a-z0-9​а-яёʻʼ]+/gi,'_').replace(/^_+|_+$/g,'') || ('cat_'+Date.now());
+
+/* ---------- boshlang'ich namuna (faqat birinchi marta, Firestore bo'sh bo'lsa, ishlatiladi) ---------- */
+const DEFAULT_CATS = [
+  { id:'vino',      name:'Vino' },
+  { id:'viski',     name:'Viski' },
+  { id:'pivo',      name:'Pivo' },
+  { id:'konyak',    name:'Konyak' },
+  { id:'aroq',      name:'Aroq' },
+  { id:'liker',     name:'Liker' },
+  { id:'rom',       name:'Rom' },
+  { id:'djin',      name:'Djin' },
+  { id:'energetik', name:'Energetik' },
+  { id:'zakuska',   name:'Zakuska' },
+];
+const DEFAULT_PRODUCTS = [
+  { id:1, cat:'vino', name:"Mahsulot nomi", meta:"750 ml · % · davlat", price:0, color:'#7c3030', type:'bottle' },
+  { id:2, cat:'viski', name:"Mahsulot nomi", meta:"700 ml · %", price:0, color:'#c99a3d', type:'bottle' },
+  { id:3, cat:'pivo', name:"Mahsulot nomi", meta:"500 ml · %", price:0, color:'#d9b23a', type:'bottle' },
+  { id:4, cat:'konyak', name:"Mahsulot nomi", meta:"500 ml · %", price:0, color:'#8a4a2b', type:'bottle' },
+  { id:5, cat:'aroq', name:"Mahsulot nomi", meta:"700 ml · %", price:0, color:'#c9d6dd', type:'bottle' },
+  { id:6, cat:'liker', name:"Mahsulot nomi", meta:"700 ml · %", price:0, color:'#a13a55', type:'bottle' },
+  { id:7, cat:'rom', name:"Mahsulot nomi", meta:"700 ml · %", price:0, color:'#5c3a1e', type:'bottle' },
+  { id:8, cat:'djin', name:"Mahsulot nomi", meta:"700 ml · %", price:0, color:'#8fae9b', type:'bottle' },
+  { id:9, cat:'energetik', name:"Mahsulot nomi", meta:"250 ml", price:0, color:'#3fa9c9', type:'can' },
+  { id:10,cat:'zakuska', name:"Mahsulot nomi", meta:"100 g", price:0, color:'#c9a24a', type:'snack' },
+];
+
+/* ---------- holat ---------- */
+let CATS = [];
+let PRODUCTS = [];
+let activeCat = null;
+let cart = {}; // { productId: qty }
+let nextProductId = 1;
+let editingProductId = null;
+let isAdmin = false;
+
+/* ---------- mahsulot rasmlari (SVG) ---------- */
+function bottleSVG(color){
+  return `<svg viewBox="0 0 60 100" xmlns="http://www.w3.org/2000/svg">
+    <rect x="26" y="4" width="8" height="14" rx="2" fill="${color}"/>
+    <path d="M22 18 L22 30 C22 34 16 36 16 46 L16 90 C16 94 20 97 24 97 L36 97 C40 97 44 94 44 90 L44 46 C44 36 38 34 38 30 L38 18 Z" fill="${color}" opacity="0.92"/>
+    <rect x="19" y="52" width="22" height="24" rx="2" fill="#17130f" opacity="0.35"/>
+  </svg>`;
+}
+function canSVG(color){
+  return `<svg viewBox="0 0 60 100" xmlns="http://www.w3.org/2000/svg">
+    <rect x="14" y="10" width="32" height="80" rx="7" fill="${color}" opacity="0.92"/>
+    <rect x="14" y="10" width="32" height="10" rx="5" fill="#17130f" opacity="0.25"/>
+    <rect x="14" y="80" width="32" height="10" rx="5" fill="#17130f" opacity="0.25"/>
+    <rect x="18" y="40" width="24" height="14" rx="2" fill="#17130f" opacity="0.3"/>
+  </svg>`;
+}
+function snackSVG(color){
+  return `<svg viewBox="0 0 60 100" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="30" cy="70" rx="26" ry="9" fill="${color}" opacity="0.35"/>
+    <path d="M12 30 C12 20 20 14 30 14 C40 14 48 20 48 30 L45 66 C44 71 38 74 30 74 C22 74 16 71 15 66 Z" fill="${color}" opacity="0.92"/>
+    <circle cx="24" cy="34" r="3" fill="#17130f" opacity="0.3"/>
+    <circle cx="34" cy="44" r="3.5" fill="#17130f" opacity="0.3"/>
+    <circle cx="26" cy="54" r="2.5" fill="#17130f" opacity="0.3"/>
+  </svg>`;
+}
+function itemSVG(type, color){
+  if(type==='can') return canSVG(color);
+  if(type==='snack') return snackSVG(color);
+  return bottleSVG(color);
+}
+
+/* ---------- render: categories ---------- */
+const catsEl = document.getElementById('cats');
+function renderCatsFull(){
+  catsEl.innerHTML = '';
+  CATS.forEach(c=>{
+    const el = document.createElement('div');
+    el.className = 'cat-pill' + (c.id===activeCat ? ' active' : '');
+    el.textContent = c.name;
+    el.dataset.cat = c.id;
+    el.onclick = () => { activeCat = c.id; renderCatsFull(); renderGrid(); };
+    catsEl.appendChild(el);
+  });
+}
+
+/* ---------- render: grid ---------- */
+const gridEl = document.getElementById('grid');
+function renderGrid(){
+  gridEl.innerHTML = '';
+  const items = PRODUCTS.filter(p=>p.cat===activeCat);
+  if(items.length===0){
+    gridEl.innerHTML = `<div class="empty-cart" style="grid-column:1/-1;">Bu bo'limda hali mahsulot yo'q.</div>`;
+    return;
+  }
+  items.forEach(p=>{
+    const qty = cart[p.id] || 0;
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="art">${itemSVG(p.type, p.color)}</div>
+      <div class="body">
+        <div class="name">${p.name}</div>
+        <div class="meta">${p.meta}</div>
+        <div class="price">${fmt(p.price)}</div>
+        <div class="row">
+          ${qty>0 ? `
+            <div class="stepper">
+              <button data-act="minus" data-id="${p.id}">−</button>
+              <div class="qty">${qty}</div>
+              <button data-act="plus" data-id="${p.id}">+</button>
+            </div>
+          ` : `<button class="add-btn" data-act="add" data-id="${p.id}">Savatga</button>`}
+        </div>
+      </div>
+    `;
+    gridEl.appendChild(card);
+  });
+}
+gridEl.addEventListener('click', e=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  const id = Number(btn.dataset.id);
+  const act = btn.dataset.act;
+  if(act==='add' || act==='plus') cart[id] = (cart[id]||0) + 1;
+  if(act==='minus') { cart[id] = (cart[id]||0) - 1; if(cart[id]<=0) delete cart[id]; }
+  renderGrid();
+  updateCartBadge();
+});
+
+/* ---------- cart badge ---------- */
+const cartBadge = document.getElementById('cartBadge');
+function cartCount(){ return Object.values(cart).reduce((a,b)=>a+b,0); }
+function cartTotal(){
+  return Object.entries(cart).reduce((sum,[id,qty])=>{
+    const p = PRODUCTS.find(x=>x.id===Number(id));
+    return sum + p.price*qty;
+  },0);
+}
+function updateCartBadge(){
+  const n = cartCount();
+  cartBadge.style.display = n>0 ? 'flex' : 'none';
+  cartBadge.textContent = n;
+}
+
+/* ---------- sheets ---------- */
+const overlay = document.getElementById('overlay');
+const cartSheet = document.getElementById('cartSheet');
+const checkoutSheet = document.getElementById('checkoutSheet');
+
+function openSheet(sheet){ overlay.classList.add('show'); sheet.classList.add('show'); }
+function closeSheets(){
+  overlay.classList.remove('show');
+  cartSheet.classList.remove('show');
+  checkoutSheet.classList.remove('show');
+}
+overlay.addEventListener('click', closeSheets);
+document.getElementById('closeCart').onclick = closeSheets;
+document.getElementById('closeCheckout').onclick = closeSheets;
+
+document.getElementById('cartBtn').onclick = ()=>{
+  renderCartSheet();
+  openSheet(cartSheet);
+};
+
+function renderCartSheet(){
+  const body = document.getElementById('cartBody');
+  const summary = document.getElementById('cartSummary');
+  const entries = Object.entries(cart);
+  if(entries.length===0){
+    body.innerHTML = `<div class="empty-cart">Savatingiz bo'sh.<br>Mahsulot tanlab, savatga qo'shing.</div>`;
+    summary.style.display = 'none';
+    return;
+  }
+  body.innerHTML = entries.map(([id,qty])=>{
+    const p = PRODUCTS.find(x=>x.id===Number(id));
+    return `
+      <div class="cart-item">
+        <div class="art">${itemSVG(p.type, p.color)}</div>
+        <div class="info">
+          <div class="name">${p.name}</div>
+          <div class="price">${qty} × ${fmt(p.price)}</div>
+          <button class="remove" data-id="${p.id}">O'chirish</button>
+        </div>
+        <div class="stepper">
+          <button data-act="minus" data-id="${p.id}">−</button>
+          <div class="qty">${qty}</div>
+          <button data-act="plus" data-id="${p.id}">+</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+  summary.style.display = 'block';
+  document.getElementById('sumCount').textContent = cartCount() + ' ta';
+  document.getElementById('sumTotal').textContent = fmt(cartTotal());
+}
+document.getElementById('cartBody').addEventListener('click', e=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  const id = Number(btn.dataset.id);
+  if(btn.dataset.act==='plus') cart[id] += 1;
+  if(btn.dataset.act==='minus'){ cart[id]-=1; if(cart[id]<=0) delete cart[id]; }
+  if(btn.classList.contains('remove')) delete cart[id];
+  renderCartSheet();
+  renderGrid();
+  updateCartBadge();
+});
+
+document.getElementById('goCheckout').onclick = ()=>{
+  // Telegram foydalanuvchi ma'lumotini avtomatik to'ldirish
+  if(tg && tg.initDataUnsafe && tg.initDataUnsafe.user){
+    const u = tg.initDataUnsafe.user;
+    const full = [u.first_name, u.last_name].filter(Boolean).join(' ');
+    if(full) document.getElementById('custName').value = full;
+  }
+  closeSheets();
+  openSheet(checkoutSheet);
+};
+
+/* ---------- toast ---------- */
+const toastEl = document.getElementById('toast');
+function toast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  setTimeout(()=>toastEl.classList.remove('show'), 2200);
+}
+
+/* ---------- buyurtmani yuborish ---------- */
+document.getElementById('sendOrderBtn').onclick = async ()=>{
+  const name = document.getElementById('custName').value.trim();
+  const phone = document.getElementById('custPhone').value.trim();
+  const note = document.getElementById('custNote').value.trim();
+
+  if(!name || !phone){
+    toast("Ism va telefon raqamini kiriting");
+    return;
+  }
+  if(cartCount()===0){
+    toast("Savat bo'sh");
+    return;
+  }
+  if(BOT_TOKEN.includes('YOUR_') || ADMIN_CHAT_ID.includes('YOUR_')){
+    toast("Bot sozlanmagan: koddagi BOT_TOKEN / ADMIN_CHAT_ID ni to'ldiring");
+    return;
+  }
+
+  const btn = document.getElementById('sendOrderBtn');
+  btn.disabled = true; btn.textContent = 'Yuborilmoqda...';
+
+  const tgUser = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user : null;
+  const username = tgUser && tgUser.username ? '@'+tgUser.username : '—';
+  const tgId = tgUser ? tgUser.id : '—';
+
+  const lines = Object.entries(cart).map(([id,qty])=>{
+    const p = PRODUCTS.find(x=>x.id===Number(id));
+    return `• ${p.name} — ${qty} ta × ${fmt(p.price)} = ${fmt(p.price*qty)}`;
+  }).join('\n');
+
+  const text =
+`🛒 <b>Yangi buyurtma</b>
+
+${lines}
+
+<b>Jami: ${fmt(cartTotal())}</b>
+
+👤 Ism: ${name}
+📞 Telefon: ${phone}
+💬 Izoh: ${note || '—'}
+
+Telegram: ${username} (id: ${tgId})`;
+
+  try{
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ chat_id: ADMIN_CHAT_ID, text, parse_mode:'HTML' })
+    });
+    const data = await res.json();
+    if(!data.ok) throw new Error(data.description || 'Xatolik');
+
+    document.getElementById('checkoutBody').innerHTML = `
+      <div class="success">
+        <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
+        <h3>Buyurtma qabul qilindi</h3>
+        <p>Tez orada operatorlarimiz siz bilan bog'lanadi.</p>
+        <button class="primary-btn" id="doneBtn">Yopish</button>
+      </div>
+    `;
+    document.getElementById('doneBtn').onclick = ()=>{
+      cart = {};
+      updateCartBadge();
+      renderGrid();
+      closeSheets();
+      if(tg) tg.close();
+    };
+  }catch(err){
+    toast("Yuborishda xatolik: " + err.message);
+    btn.disabled = false; btn.textContent = 'Buyurtmani yuborish';
+  }
+};
+
+/* ================= ADMIN PANEL ================= */
+const pinSheet = document.getElementById('pinSheet');
+const adminSheet = document.getElementById('adminSheet');
+const adminBody = document.getElementById('adminBody');
+let adminTab = 'products';
+
+document.getElementById('adminBtn').onclick = ()=>{
+  document.getElementById('pinInput').value = '';
+  openSheet(pinSheet);
+};
+document.getElementById('closePin').onclick = closeSheets;
+document.getElementById('pinSubmit').onclick = ()=>{
+  const val = document.getElementById('pinInput').value.trim();
+  if(val === ADMIN_PIN){
+    isAdmin = true;
+    closeSheets();
+    adminTab = 'products';
+    editingProductId = null;
+    renderAdmin();
+    openSheet(adminSheet);
+  } else {
+    toast("PIN noto'g'ri");
+  }
+};
+document.getElementById('closeAdmin').onclick = closeSheets;
+
+document.querySelectorAll('.admin-tab').forEach(btn=>{
+  btn.onclick = ()=>{
+    adminTab = btn.dataset.tab;
+    document.querySelectorAll('.admin-tab').forEach(b=>b.classList.toggle('active', b===btn));
+    editingProductId = null;
+    renderAdmin();
+  };
+});
+
+async function saveCatalog(){
+  try{
+    await CATALOG_DOC.set({ categories: CATS, products: PRODUCTS });
+    return true;
+  }catch(err){
+    toast("Saqlashda xatolik: " + err.message);
+    return false;
+  }
+}
+
+function renderAdmin(){
+  if(adminTab==='products') renderAdminProducts();
+  else renderAdminCats();
+}
+
+/* ---- mahsulotlar boshqaruvi ---- */
+function renderAdminProducts(){
+  const editing = PRODUCTS.find(p=>p.id===editingProductId);
+  const catOptions = CATS.map(c=>`<option value="${c.id}" ${editing && editing.cat===c.id ? 'selected':''}>${c.name}</option>`).join('');
+
+  const rows = PRODUCTS.map(p=>{
+    const cat = CATS.find(c=>c.id===p.cat);
+    return `
+      <div class="admin-row">
+        <div class="art">${itemSVG(p.type, p.color)}</div>
+        <div class="info">
+          <div class="name">${p.name}</div>
+          <div class="meta">${cat ? cat.name : p.cat} · ${fmt(p.price)}</div>
+        </div>
+        <div class="actions">
+          <button class="icon-btn" data-act="edit" data-id="${p.id}">✎</button>
+          <button class="icon-btn danger" data-act="del" data-id="${p.id}">✕</button>
+        </div>
+      </div>
+    `;
+  }).join('') || `<div class="empty-cart">Hali mahsulot qo'shilmagan.</div>`;
+
+  adminBody.innerHTML = `
+    <div class="admin-section-title">MAHSULOTLAR (${PRODUCTS.length})</div>
+    ${rows}
+    <div class="admin-section-title">${editing ? "MAHSULOTNI TAHRIRLASH" : "YANGI MAHSULOT QO'SHISH"}</div>
+    <div class="field">
+      <label>Bo'lim</label>
+      <select id="pfCat">${catOptions}</select>
+    </div>
+    <div class="field">
+      <label>Nomi</label>
+      <input type="text" id="pfName" value="${editing ? editing.name.replace(/"/g,'&quot;') : ''}" placeholder="Masalan: Qizil quruq vino">
+    </div>
+    <div class="field">
+      <label>Tavsif (hajm, foiz, davlat)</label>
+      <input type="text" id="pfMeta" value="${editing ? editing.meta.replace(/"/g,'&quot;') : ''}" placeholder="750 ml · 13% · Gruziya">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Narxi (so'm)</label>
+        <input type="number" id="pfPrice" value="${editing ? editing.price : ''}" placeholder="165000">
+      </div>
+      <div class="field">
+        <label>Rasm turi</label>
+        <select id="pfType">
+          <option value="bottle" ${editing && editing.type==='bottle' ? 'selected':''}>Shisha</option>
+          <option value="can" ${editing && editing.type==='can' ? 'selected':''}>Banka</option>
+          <option value="snack" ${editing && editing.type==='snack' ? 'selected':''}>Zakuska</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Rang</label>
+      <input type="color" id="pfColor" value="${editing ? editing.color : '#c99a3d'}">
+    </div>
+    <button class="primary-btn" id="pfSave">${editing ? "Saqlash" : "Qo'shish"}</button>
+    ${editing ? `<button class="secondary-btn" id="pfCancel">Bekor qilish</button>` : ''}
+  `;
+
+  adminBody.querySelectorAll('[data-act="edit"]').forEach(btn=>{
+    btn.onclick = ()=>{ editingProductId = Number(btn.dataset.id); renderAdminProducts(); };
+  });
+  adminBody.querySelectorAll('[data-act="del"]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const doDelete = async ()=>{
+        PRODUCTS = PRODUCTS.filter(p=>p.id!==Number(btn.dataset.id));
+        await saveCatalog();
+        renderAdminProducts();
+        renderGrid();
+        toast("Mahsulot o'chirildi");
+      };
+      if(tg && tg.showConfirm){
+        tg.showConfirm("Mahsulotni o'chirasizmi?", ok=>{ if(ok) doDelete(); });
+      } else if(confirm("Mahsulotni o'chirasizmi?")){
+        doDelete();
+      }
+    };
+  });
+  const cancelBtn = document.getElementById('pfCancel');
+  if(cancelBtn) cancelBtn.onclick = ()=>{ editingProductId=null; renderAdminProducts(); };
+
+  document.getElementById('pfSave').onclick = async ()=>{
+    const cat = document.getElementById('pfCat').value;
+    const name = document.getElementById('pfName').value.trim();
+    const meta = document.getElementById('pfMeta').value.trim();
+    const price = Number(document.getElementById('pfPrice').value) || 0;
+    const type = document.getElementById('pfType').value;
+    const color = document.getElementById('pfColor').value;
+
+    if(!name){ toast("Mahsulot nomini kiriting"); return; }
+    if(CATS.length===0){ toast("Avval kamida bitta bo'lim yarating"); return; }
+
+    if(editingProductId){
+      const p = PRODUCTS.find(x=>x.id===editingProductId);
+      Object.assign(p, { cat, name, meta, price, type, color });
+    } else {
+      const maxId = PRODUCTS.reduce((m,p)=>Math.max(m,p.id),0);
+      PRODUCTS.push({ id: maxId+1, cat, name, meta, price, type, color });
+    }
+    const ok = await saveCatalog();
+    if(ok){
+      editingProductId = null;
+      renderAdminProducts();
+      renderGrid();
+      toast("Saqlandi");
+    }
+  };
+}
+
+/* ---- bo'limlar boshqaruvi ---- */
+function renderAdminCats(){
+  const rows = CATS.map(c=>{
+    const count = PRODUCTS.filter(p=>p.cat===c.id).length;
+    return `
+      <div class="admin-row">
+        <div class="info">
+          <div class="name">${c.name}</div>
+          <div class="meta">${count} ta mahsulot</div>
+        </div>
+        <div class="actions">
+          <button class="icon-btn danger" data-act="delcat" data-id="${c.id}">✕</button>
+        </div>
+      </div>
+    `;
+  }).join('') || `<div class="empty-cart">Hali bo'lim yo'q.</div>`;
+
+  adminBody.innerHTML = `
+    <div class="admin-section-title">BO'LIMLAR (${CATS.length})</div>
+    ${rows}
+    <div class="admin-section-title">YANGI BO'LIM QO'SHISH</div>
+    <div class="field">
+      <label>Bo'lim nomi</label>
+      <input type="text" id="cfName" placeholder="Masalan: Shampan">
+    </div>
+    <button class="primary-btn" id="cfSave">Qo'shish</button>
+  `;
+
+  adminBody.querySelectorAll('[data-act="delcat"]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const id = btn.dataset.id;
+      const count = PRODUCTS.filter(p=>p.cat===id).length;
+      const doDelete = async ()=>{
+        CATS = CATS.filter(c=>c.id!==id);
+        PRODUCTS = PRODUCTS.filter(p=>p.cat!==id);
+        await saveCatalog();
+        if(activeCat===id) activeCat = CATS[0] ? CATS[0].id : null;
+        renderCatsFull();
+        renderGrid();
+        renderAdminCats();
+        toast("Bo'lim o'chirildi");
+      };
+      const msg = count>0
+        ? `Bu bo'limda ${count} ta mahsulot bor. Bo'lim bilan birga ular ham o'chadi. Davom etamizmi?`
+        : "Bo'limni o'chirasizmi?";
+      if(tg && tg.showConfirm){
+        tg.showConfirm(msg, ok=>{ if(ok) doDelete(); });
+      } else if(confirm(msg)){
+        doDelete();
+      }
+    };
+  });
+
+  document.getElementById('cfSave').onclick = async ()=>{
+    const name = document.getElementById('cfName').value.trim();
+    if(!name){ toast("Bo'lim nomini kiriting"); return; }
+    let id = slugify(name);
+    if(CATS.some(c=>c.id===id)) id = id + '_' + Date.now().toString().slice(-4);
+    CATS.push({ id, name });
+    const ok = await saveCatalog();
+    if(ok){
+      if(!activeCat) activeCat = id;
+      renderCatsFull();
+      renderGrid();
+      renderAdminCats();
+      toast("Bo'lim qo'shildi");
+    }
+  };
+}
+
+/* ---------- ma'lumotlarni Firestore'dan yuklash ---------- */
+async function loadCatalog(){
+  gridEl.innerHTML = `<div class="empty-cart" style="grid-column:1/-1;">Yuklanmoqda...</div>`;
+  try{
+    const snap = await CATALOG_DOC.get();
+    if(snap.exists){
+      const data = snap.data();
+      CATS = data.categories || [];
+      PRODUCTS = data.products || [];
+    } else {
+      CATS = JSON.parse(JSON.stringify(DEFAULT_CATS));
+      PRODUCTS = JSON.parse(JSON.stringify(DEFAULT_PRODUCTS));
+      await CATALOG_DOC.set({ categories: CATS, products: PRODUCTS });
+    }
+  }catch(err){
+    console.error(err);
+    CATS = JSON.parse(JSON.stringify(DEFAULT_CATS));
+    PRODUCTS = JSON.parse(JSON.stringify(DEFAULT_PRODUCTS));
+    toast("Internetga ulanishda muammo, namuna ma'lumot ko'rsatilmoqda");
+  }
+  activeCat = CATS[0] ? CATS[0].id : null;
+  renderCatsFull();
+  renderGrid();
+}
+
+/* ---------- start ---------- */
+loadCatalog();
+updateCartBadge();
+</script>
+</body>
+</html>
